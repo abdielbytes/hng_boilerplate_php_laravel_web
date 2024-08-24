@@ -215,6 +215,8 @@ Route::prefix('v1')->group(function () {
         Route::delete('/organisations/{org_id}/users/{user_id}', [OrganisationController::class, 'removeUser']);
         Route::get('/organisations/{organisation}/users', [organisationMemberController::class, 'index']);
 
+        Route::get('/organisations/invite', [OrganisationController::class, 'sendInvites']);
+
         //Role Organisations
 
 
@@ -340,8 +342,6 @@ Route::prefix('v1')->group(function () {
     Route::get('/timezones', [TimezoneController::class, 'index']);
 
 
-    //    quest
-    Route::get('/quests/{id}/messages', [QuestController::class, 'getQuestMessages']);
 
     Route::post('/squeeze-user', [SqueezePageUserController::class, 'store']);
 

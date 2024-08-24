@@ -15,6 +15,9 @@ use Illuminate\Support\Facades\DB;
 use App\Http\Resources\OrganisationResource;
 use App\Models\Role;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Mail;
+use App\Mail\OrganisationInviteMail;
+use Illuminate\Support\Facades\Validator;
 
 class OrganisationController extends Controller
 {
@@ -232,5 +235,75 @@ class OrganisationController extends Controller
                 'is_default' => $role->is_default,
             ]
         ]);
+    }
+    public function sendInvites(Request $request)
+    {
+        // Ensure the user is authenticated
+        if (!Auth::check()) {
+            return response()->json([
+                'status_code' => 401,
+                'message' => 'Unauthorized',
+                'data' => []
+            ], 401);
+        }
+
+        // Validate the request
+        $validator = Validator::make($request->all(), [
+            'emails' => 'required|array',
+            'emails.*' => 'required|email',
+            'org_id' => 'required|uuid|exists:organisations,id',
+        ]);
+
+        if ($validator->fails()) {
+            $errors = [];
+            foreach ($validator->errors()->getMessages() as $field => $messages) {
+                $errors[] = [
+                    'field' => $field,
+                    'error_message' => $messages[0]
+                ];
+            }
+
+            return response()->json([
+                'status_code' => 422,
+                'message' => $errors,
+                'data' => []
+            ], 422);
+        }
+
+        $organisation = Organisation::find($request->org_id);
+        $invitations = [];
+
+        foreach ($request->emails as $email) {
+            try {
+                // Generate the invite link
+                $inviteToken = Str::random(32);
+                $inviteLink = route('organisation.invite.accept', ['token' => $inviteToken, 'org_id' => $organisation->id]);
+
+
+                Mail::to($email)->send(new OrganisationInviteMail($organisation, $inviteLink));
+
+                // Add the invitation to the response
+                $invitations[] = [
+                    'email' => $email,
+                    'invite_link' => $inviteLink,
+                    'error' => null
+                ];
+            } catch (\Exception $e) {
+                // If sending the email fails, add the error to the response
+                $invitations[] = [
+                    'email' => $email,
+                    'invite_link' => null,
+                    'error' => $e->getMessage()
+                ];
+            }
+        }
+
+        return response()->json([
+            'status_code' => 200,
+            'message' => 'Invitations processed',
+            'data' => [
+                'invitations' => $invitations
+            ]
+        ], 200);
     }
 }
